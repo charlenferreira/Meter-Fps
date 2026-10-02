@@ -37,8 +37,8 @@ jobs:
 
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add debug.keystore
-            git commit -m "chore: salvar debug.keystore permanente"
+            git add -f debug.keystore
+            git commit -m "chore: salvar debug.keystore permanente [skip ci]"
             git push
           else
             echo "debug.keystore permanente ja existe no repositorio!"
@@ -70,7 +70,7 @@ jobs:
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Versão 1.0.${{ github.run_number }}"
-          body: "Instalador do ${{ github.event.repository.name }} v1.0.${{ github.run_number }} gerado automaticamente!"
+          body: "Instalador do ${{ github.event.repository.name }} v1.0.${{ github.run_number }} pronto para instalar e atualizar!"
           files: app/build/outputs/apk/debug/*-v*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
