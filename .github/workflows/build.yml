@@ -21,9 +21,28 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Restaurar debug.keystore permanente (Base64)
+      - name: Garantir debug.keystore permanente
         run: |
-          echo "/u3+7QAAAAIAAAABAAAAAQAMZGVidWdrZXlzdG9yZQAAAZK2u1yVAAAFATCCBP0wDgYKKwYBBAEqAhEBAQUAMBkEF2NvbS5hbmRyb2lkLmRlYnVna2V5c3RvcmUCAQYDAgEAMIIEvwYJKoZIhvcNAQcKoIIEsDCCBKwwEQYKYIZIAWUDBAECBAAAAAAAgghvMIIC7TCCAlmgAwIBAgIEWj6U3DANBgkqhkiG9w0BAQsFADBLMQswCQYDVQQGEwJVUzEQMA4GA1UEChMHYW5kcm9pZDEQMA4GA1UECxMHYW5kcm9pZDEbMBkGA1UEAxMSQW5kcm9pZCBEZWJ1Z2tleXN0b3JlMB4XDTI2MTAwMjAwMDAwMFoXDTU2MTAwMjAwMDAwMFowSzELMAkGA1UEBhMCVVMxEDAOBgNVBAoTB2FuZHJvaWQxEDAOBgNVBAsTB2FuZHJvaWQxGzAZBgNVBAMTUkFuZHJvaWQgRGVidWdrZXlzdG9yZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALyS0+P4n+l3M4G9h3qG6E6bO8+0A+d3uB9qB3l0yC2y9N2J+O5B9n9q1B3uV5L+b9H4K3l8s7b2A3y5K+O7j7X1Q3s2m8n7v1b5p2t8n6v4s3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3a1d9b3AgMBAAEwDQYJKoZIhvcNAQELBQADggEBAJy7V3t+B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7B3m8N4O1V2L9P4M6k8L5v7" | base64 -d > debug.keystore
+          if [ ! -f "debug.keystore" ]; then
+            echo "Gerando debug.keystore fixa..."
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -f debug.keystore
+            git commit -m "chore: salvar debug.keystore permanente [skip ci]" || echo "Nenhuma mudanca"
+            git push || echo "Push ignorado"
+          else
+            echo "debug.keystore ja existe!"
+          fi
 
       - name: Sincronizar versao interna do app com o GitHub Actions
         run: |
