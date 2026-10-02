@@ -48,14 +48,19 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -72,6 +77,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,6 +95,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.BuildConfig
 import com.example.hardware.HardwareMonitor
 import com.example.model.DeviceHardwareInfo
 import com.example.model.FpsMetrics
@@ -96,6 +103,9 @@ import com.example.model.HudConfig
 import com.example.model.RamMetrics
 import com.example.model.ThermalMetrics
 import com.example.ui.FloatingHudView
+import com.example.updater.GitHubUpdateChecker
+import com.example.updater.UpdateState
+import kotlinx.coroutines.launch
 import com.example.ui.theme.HudAmber
 import com.example.ui.theme.HudBorder
 import com.example.ui.theme.HudCrimson
@@ -152,10 +162,17 @@ fun HudDashboardScreen(
     val liveFps by hardwareMonitor.fpsMetrics.collectAsState()
     val liveThermal by hardwareMonitor.thermalMetrics.collectAsState()
     val liveRam by hardwareMonitor.ramMetrics.collectAsState()
+    val updateState by GitHubUpdateChecker.updateState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var config by remember { mutableStateOf(HudConfig.load(context)) }
     val hardwareInfo = remember { hardwareMonitor.getDeviceHardwareInfo() }
+
+    // Auto-check GitHub releases on launch
+    LaunchedEffect(Unit) {
+        GitHubUpdateChecker.checkForUpdates()
+    }
 
     // Check overlay permission whenever app is resumed
     DisposableEffect(lifecycleOwner) {
@@ -200,7 +217,7 @@ fun HudDashboardScreen(
                                 .background(if (isHudRunning) HudEmerald else TextMuted)
                         )
                         Text(
-                            text = "FPS & HARDWARE HUD",
+                            text = "METER FPS",
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
@@ -257,6 +274,26 @@ fun HudDashboardScreen(
                             }
                         } else {
                             FloatingHudService.stop(context)
+                        }
+                    }
+                )
+            }
+
+            // GitHub Update Checker Card
+            item {
+                GitHubUpdateCard(
+                    updateState = updateState,
+                    onCheckAgain = {
+                        coroutineScope.launch {
+                            GitHubUpdateChecker.checkForUpdates()
+                        }
+                    },
+                    onOpenUrl = { url ->
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
                     }
                 )
@@ -1020,5 +1057,333 @@ fun SpecRow(label: String, value: String) {
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp
         )
+    }
+}
+
+@Composable
+fun GitHubUpdateCard(
+    updateState: UpdateState,
+    onCheckAgain: () -> Unit,
+    onOpenUrl: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("github_update_card"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = HudSurface),
+        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(HudBorder))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = HudCyan,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "REPOSITÓRIO & ATUALIZAÇÕES",
+                        color = TextPrimary,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Text(
+                    text = "v${BuildConfig.VERSION_NAME}",
+                    color = HudCyan,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+
+            when (updateState) {
+                is UpdateState.Checking -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(HudSurfaceVariant)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = HudCyan,
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = "Consultando releases oficiais no GitHub...",
+                            color = TextSecondary,
+                            fontFamily = FontFamily.SansSerif,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                is UpdateState.UpdateAvailable -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(HudCyan.copy(alpha = 0.12f))
+                            .border(1.dp, HudCyan.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDownload,
+                                contentDescription = null,
+                                tint = HudCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "NOVA VERSÃO DISPONÍVEL: ${updateState.tagName}",
+                                color = HudCyan,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        if (updateState.releaseNotes.isNotBlank()) {
+                            Text(
+                                text = updateState.releaseNotes,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 12.sp,
+                                maxLines = 4
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (updateState.apkDownloadUrl != null) {
+                                Button(
+                                    onClick = { onOpenUrl(updateState.apkDownloadUrl) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = HudCyan,
+                                        contentColor = HudDarkBg
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("download_update_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Baixar APK",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { onOpenUrl(updateState.releaseHtmlUrl) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("view_release_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInBrowser,
+                                    contentDescription = null,
+                                    tint = HudCyan,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Ver Release",
+                                    color = HudCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                is UpdateState.UpToDate -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(HudSurfaceVariant)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = HudEmerald,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Aplicativo atualizado (v${updateState.version})",
+                                color = TextPrimary,
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = onCheckAgain,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = HudSurfaceHighlight,
+                                contentColor = HudCyan
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("check_updates_again_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Checar",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                is UpdateState.Error -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(HudSurfaceVariant)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = HudAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = updateState.message,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Button(
+                                onClick = onCheckAgain,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = HudCyan,
+                                    contentColor = HudDarkBg
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "Tentar Novamente",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                is UpdateState.Idle -> {
+                    Button(
+                        onClick = onCheckAgain,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = HudCyan,
+                            contentColor = HudDarkBg
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("check_updates_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Checar Atualizações no GitHub",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            // GitHub repository link
+            OutlinedButton(
+                onClick = { onOpenUrl(GitHubUpdateChecker.GITHUB_REPO_URL) },
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_github_repo_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.OpenInBrowser,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Acessar Repositório Oficial no GitHub",
+                    color = TextSecondary,
+                    fontFamily = FontFamily.SansSerif,
+                    fontSize = 12.sp
+                )
+            }
+        }
     }
 }

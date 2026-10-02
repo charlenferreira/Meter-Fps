@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.File
 
 plugins {
   alias(libs.plugins.android.application)
@@ -6,6 +7,10 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+}
+
+base {
+  archivesName.set("MeterFPS")
 }
 
 android {
@@ -17,7 +22,7 @@ android {
     minSdk = 26
     targetSdk = 35
     versionCode = 1
-    versionName = "1.0"
+    versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -63,6 +68,29 @@ android {
     includeInApk = false
     includeInBundle = true
   }
+}
+
+abstract class RenameApkTask : DefaultTask() {
+  @get:InputDirectory
+  abstract val apkDir: DirectoryProperty
+
+  @TaskAction
+  fun rename() {
+    val dir = apkDir.get().asFile
+    val source = File(dir, "MeterFPS-debug.apk")
+    val dest = File(dir, "MeterFPS.apk")
+    if (source.exists()) {
+      source.copyTo(dest, overwrite = true)
+    }
+  }
+}
+
+val renameDebugApk = tasks.register<RenameApkTask>("renameDebugApk") {
+  apkDir.set(layout.buildDirectory.dir("outputs/apk/debug"))
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+  finalizedBy(renameDebugApk)
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

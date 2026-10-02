@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">FPS &amp; Hardware Monitor HUD</string>
+    <string name="app_name">Meter FPS</string>
     <string name="service_notification_channel_id">hud_monitor_channel</string>
     <string name="service_notification_channel_name">HUD Monitor Service</string>
-    <string name="service_notification_title">HUD de Monitoramento Ativo</string>
+    <string name="service_notification_title">Meter FPS - Overlay Ativo</string>
     <string name="service_notification_text">Monitorando FPS, Temperatura e Memória em tempo real.</string>
     <string name="service_notification_stop_action">Parar HUD</string>
     <string name="overlay_permission_title">Permissão de Sobreposição Necessária</string>

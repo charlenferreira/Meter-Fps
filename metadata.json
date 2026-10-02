@@ -1,6 +1,6 @@
 {
-  "name": "FPS & Hardware Monitor HUD",
-  "description": "Floating HUD displaying real-time FPS, screen refresh rate, thermal status, battery temperature, and RAM usage overlay.",
+  "name": "Meter FPS",
+  "description": "Floating HUD overlay displaying real-time FPS, screen refresh rate, thermal status, battery temperature, and RAM usage with automatic GitHub update checker.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "FPS Monitor HUD"
+rootProject.name = "Meter FPS"
 
 include(":app")
