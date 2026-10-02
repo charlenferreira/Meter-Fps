@@ -4,18 +4,25 @@ import android.content.Context
 import android.content.SharedPreferences
 
 data class HudConfig(
-    val scalePercent: Int = 100, // 75% to 150%
+    val scalePercent: Int = 100, // 70% to 150%
     val opacityPercent: Int = 90, // 30% to 100%
     val showFps: Boolean = true,
     val showRefreshRate: Boolean = true,
     val showThermal: Boolean = true,
     val showRam: Boolean = true,
+    val showPing: Boolean = true,
+    val showTopApp: Boolean = true,
     val compactMode: Boolean = false,
+    val themeId: String = ThemePreset.BEIGE.id,
+    val pingServerHost: String = "1.1.1.1", // "1.1.1.1" or "8.8.8.8"
     val posX: Int = 50,
     val posY: Int = 120
 ) {
     val scaleFactor: Float get() = scalePercent / 100f
     val alphaFactor: Float get() = opacityPercent / 100f
+
+    val themePreset: ThemePreset get() = ThemePreset.fromId(themeId)
+    val colors: ThemeColors get() = themePreset.toThemeColors()
 
     companion object {
         private const val PREFS_NAME = "hud_monitor_settings"
@@ -25,7 +32,11 @@ data class HudConfig(
         private const val KEY_SHOW_REFRESH = "show_refresh"
         private const val KEY_SHOW_THERMAL = "show_thermal"
         private const val KEY_SHOW_RAM = "show_ram"
+        private const val KEY_SHOW_PING = "show_ping"
+        private const val KEY_SHOW_TOP_APP = "show_top_app"
         private const val KEY_COMPACT = "compact_mode"
+        private const val KEY_THEME = "theme_id"
+        private const val KEY_PING_SERVER = "ping_server"
         private const val KEY_POS_X = "pos_x"
         private const val KEY_POS_Y = "pos_y"
 
@@ -38,7 +49,11 @@ data class HudConfig(
                 showRefreshRate = prefs.getBoolean(KEY_SHOW_REFRESH, true),
                 showThermal = prefs.getBoolean(KEY_SHOW_THERMAL, true),
                 showRam = prefs.getBoolean(KEY_SHOW_RAM, true),
+                showPing = prefs.getBoolean(KEY_SHOW_PING, true),
+                showTopApp = prefs.getBoolean(KEY_SHOW_TOP_APP, true),
                 compactMode = prefs.getBoolean(KEY_COMPACT, false),
+                themeId = prefs.getString(KEY_THEME, ThemePreset.BEIGE.id) ?: ThemePreset.BEIGE.id,
+                pingServerHost = prefs.getString(KEY_PING_SERVER, "1.1.1.1") ?: "1.1.1.1",
                 posX = prefs.getInt(KEY_POS_X, 60),
                 posY = prefs.getInt(KEY_POS_Y, 140)
             )
@@ -53,7 +68,11 @@ data class HudConfig(
                 .putBoolean(KEY_SHOW_REFRESH, config.showRefreshRate)
                 .putBoolean(KEY_SHOW_THERMAL, config.showThermal)
                 .putBoolean(KEY_SHOW_RAM, config.showRam)
+                .putBoolean(KEY_SHOW_PING, config.showPing)
+                .putBoolean(KEY_SHOW_TOP_APP, config.showTopApp)
                 .putBoolean(KEY_COMPACT, config.compactMode)
+                .putString(KEY_THEME, config.themeId)
+                .putString(KEY_PING_SERVER, config.pingServerHost)
                 .putInt(KEY_POS_X, config.posX)
                 .putInt(KEY_POS_Y, config.posY)
                 .apply()

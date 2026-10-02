@@ -1,7 +1,7 @@
 package com.example.model
 
 /**
- * Real-time hardware performance metrics for FPS, Thermal, and Memory.
+ * Real-time hardware performance metrics for FPS, Thermal, Memory, Ping, and Top Process.
  */
 data class FpsMetrics(
     val fps: Int = 60,
@@ -26,7 +26,31 @@ data class RamMetrics(
     val usedGb: Float get() = usedBytes / (1024f * 1024f * 1024f)
     val totalGb: Float get() = totalBytes / (1024f * 1024f * 1024f)
     val availGb: Float get() = availBytes / (1024f * 1024f * 1024f)
+    val usedMb: Long get() = usedBytes / (1024L * 1024L)
+    val totalMb: Long get() = totalBytes / (1024L * 1024L)
+    val availMb: Long get() = availBytes / (1024L * 1024L)
+    val isCritical: Boolean get() = (totalBytes > 0L && (availBytes.toFloat() / totalBytes.toFloat()) < 0.15f)
 }
+
+data class NetworkMetrics(
+    val pingMs: Int = 0,
+    val networkType: String = "Verificando...",
+    val isConnected: Boolean = true,
+    val wifiSignalPercent: Int = 85
+)
+
+data class ProcessMetrics(
+    val topAppName: String = "Identificando...",
+    val packageName: String = "",
+    val details: String = "Processamento em primeiro plano"
+)
+
+data class LagDiagnosticResult(
+    val causeTitle: String,
+    val isNetworkIssue: Boolean,
+    val details: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 data class DeviceHardwareInfo(
     val manufacturer: String = "",

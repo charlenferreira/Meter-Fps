@@ -24,6 +24,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.hardware.HardwareMonitor
 import com.example.model.HudConfig
+import com.example.network.NetworkSpeedTester
 import com.example.service.OverlayLifecycleOwner
 import com.example.ui.FloatingHudView
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service hosting the floating overlay HUD widget in WindowManager.
@@ -131,12 +133,23 @@ class FloatingHudService : Service() {
                 val fps by hardwareMonitor!!.fpsMetrics.collectAsState()
                 val thermal by hardwareMonitor!!.thermalMetrics.collectAsState()
                 val ram by hardwareMonitor!!.ramMetrics.collectAsState()
+                val network by hardwareMonitor!!.networkMetrics.collectAsState()
+                val process by hardwareMonitor!!.processMetrics.collectAsState()
+                val speedTestState by NetworkSpeedTester.testState.collectAsState()
 
                 FloatingHudView(
                     config = hudConfig,
                     fpsMetrics = fps,
                     thermalMetrics = thermal,
                     ramMetrics = ram,
+                    networkMetrics = network,
+                    processMetrics = process,
+                    speedTestState = speedTestState,
+                    onTriggerSpeedTest = {
+                        serviceScope.launch {
+                            NetworkSpeedTester.runFlashSpeedTest()
+                        }
+                    },
                     onDrag = { dx, dy ->
                         windowLayoutParams?.let { lp ->
                             lp.x = (lp.x + dx.toInt()).coerceAtLeast(0)

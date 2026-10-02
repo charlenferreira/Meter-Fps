@@ -1,10 +1,14 @@
 package com.example.hardware
 
 import android.app.ActivityManager
+import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -15,6 +19,8 @@ import android.view.Choreographer
 import android.view.WindowManager
 import com.example.model.DeviceHardwareInfo
 import com.example.model.FpsMetrics
+import com.example.model.NetworkMetrics
+import com.example.model.ProcessMetrics
 import com.example.model.RamMetrics
 import com.example.model.ThermalMetrics
 import kotlinx.coroutines.CoroutineScope
@@ -27,16 +33,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.net.InetSocketAddress
+import java.net.Socket
 
 /**
- * Robust hardware monitor providing real-time FPS, Thermal status, and Memory metrics
- * with safe fallbacks across all Android versions.
+ * Robust hardware monitor providing real-time FPS, Thermal status, Memory, Network Ping,
+ * and Top Processing App with safe fallbacks.
  */
 class HardwareMonitor(private val context: Context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Default + Job())
     private var pollingJob: Job? = null
+    private var pingJob: Job? = null
+    private var processJob: Job? = null
 
     // State flows
     private val _fpsMetrics = MutableStateFlow(FpsMetrics())
@@ -48,9 +58,17 @@ class HardwareMonitor(private val context: Context) {
     private val _ramMetrics = MutableStateFlow(RamMetrics())
     val ramMetrics: StateFlow<RamMetrics> = _ramMetrics.asStateFlow()
 
+    private val _networkMetrics = MutableStateFlow(NetworkMetrics())
+    val networkMetrics: StateFlow<NetworkMetrics> = _networkMetrics.asStateFlow()
+
+    private val _processMetrics = MutableStateFlow(ProcessMetrics())
+    val processMetrics: StateFlow<ProcessMetrics> = _processMetrics.asStateFlow()
+
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
     private val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+    private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+    private val packageManager: PackageManager = context.packageManager
 
     private var isRunning = false
     private var currentRefreshRate = 60.0f
@@ -117,12 +135,28 @@ class HardwareMonitor(private val context: Context) {
             Choreographer.getInstance().postFrameCallback(frameCallback)
         }
 
-        // Start background polling for RAM & periodic hardware refresh
+        // Background polling for RAM & Thermal
         pollingJob = scope.launch {
             while (isActive && isRunning) {
                 updateRamMetrics()
                 updateThermalMetrics()
                 delay(1000L)
+            }
+        }
+
+        // Background polling for Network Ping
+        pingJob = scope.launch(Dispatchers.IO) {
+            while (isActive && isRunning) {
+                measureNetworkPing()
+                delay(2000L)
+            }
+        }
+
+        // Background polling for Top Process
+        processJob = scope.launch(Dispatchers.IO) {
+            while (isActive && isRunning) {
+                detectTopProcess()
+                delay(2000L)
             }
         }
     }
@@ -131,6 +165,10 @@ class HardwareMonitor(private val context: Context) {
         isRunning = false
         pollingJob?.cancel()
         pollingJob = null
+        pingJob?.cancel()
+        pingJob = null
+        processJob?.cancel()
+        processJob = null
 
         mainHandler.post {
             Choreographer.getInstance().removeFrameCallback(frameCallback)
@@ -174,7 +212,7 @@ class HardwareMonitor(private val context: Context) {
             try {
                 powerManager.removeThermalStatusListener(thermalListener!!)
             } catch (e: Exception) {
-                // Ignore during teardown
+                // Ignore
             }
             thermalListener = null
         }
@@ -188,7 +226,7 @@ class HardwareMonitor(private val context: Context) {
                 updateBatteryAndThermalMetrics(stickyIntent)
             }
         } catch (e: Exception) {
-            // Fallback default
+            // Fallback
         }
     }
 
@@ -196,7 +234,7 @@ class HardwareMonitor(private val context: Context) {
         try {
             context.unregisterReceiver(batteryReceiver)
         } catch (e: Exception) {
-            // Receiver might not be registered
+            // Ignore
         }
     }
 
@@ -221,8 +259,6 @@ class HardwareMonitor(private val context: Context) {
         }
 
         val isThrottling = currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
-
-        // Read direct CPU temperature if permitted by hardware/SELinux; fallback cleanly if restricted
         val cpuTemp = readCpuTemperatureDirect() ?: estimateCpuTemperature(latestBatteryTempCelsius, currentThermalStatus)
 
         _thermalMetrics.value = ThermalMetrics(
@@ -234,10 +270,6 @@ class HardwareMonitor(private val context: Context) {
         )
     }
 
-    /**
-     * Attempts to read CPU temperature directly from known Linux thermal sysfs zones.
-     * Wrapped with try-catch so it never fails or throws exceptions when restricted.
-     */
     private fun readCpuTemperatureDirect(): Float? {
         val thermalPaths = listOf(
             "/sys/class/thermal/thermal_zone0/temp",
@@ -258,16 +290,12 @@ class HardwareMonitor(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                // Ignore and proceed to fallback
+                // Ignore
             }
         }
         return null
     }
 
-    /**
-     * Reliable official API fallback combining battery temperature and PowerManager thermal status.
-     * Guaranteed to never return null.
-     */
     private fun estimateCpuTemperature(batteryTemp: Float, thermalStatus: Int): Float {
         val thermalOffset = when (thermalStatus) {
             PowerManager.THERMAL_STATUS_LIGHT -> 5.5f
@@ -302,13 +330,158 @@ class HardwareMonitor(private val context: Context) {
                 usagePercentage = percent
             )
         } catch (e: Exception) {
-            // Maintain existing metrics on exception
+            // Ignore
         }
     }
 
     /**
-     * Retrieves static device hardware specs for the dashboard.
+     * Measures real socket connection latency (ping in ms) to public DNS servers.
      */
+    private fun measureNetworkPing() {
+        try {
+            val activeNetwork = connectivityManager?.activeNetwork
+            val capabilities = connectivityManager?.getNetworkCapabilities(activeNetwork)
+
+            if (capabilities == null || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                _networkMetrics.value = NetworkMetrics(
+                    pingMs = 0,
+                    networkType = "Offline",
+                    isConnected = false
+                )
+                return
+            }
+
+            val netType = when {
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Rede Móvel"
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+                else -> "Conectado"
+            }
+
+            val endpoints = listOf(
+                Pair("8.8.8.8", 53),
+                Pair("1.1.1.1", 53)
+            )
+
+            var bestPing = -1
+            for ((host, port) in endpoints) {
+                try {
+                    val socket = Socket()
+                    val start = System.currentTimeMillis()
+                    socket.connect(InetSocketAddress(host, port), 1200)
+                    val latency = (System.currentTimeMillis() - start).toInt()
+                    socket.close()
+                    if (latency in 1..2000) {
+                        bestPing = latency
+                        break
+                    }
+                } catch (e: Exception) {
+                    // Try next endpoint
+                }
+            }
+
+            if (bestPing > 0) {
+                _networkMetrics.value = NetworkMetrics(
+                    pingMs = bestPing,
+                    networkType = netType,
+                    isConnected = true
+                )
+            } else {
+                _networkMetrics.value = NetworkMetrics(
+                    pingMs = 0,
+                    networkType = "$netType (Sem resposta)",
+                    isConnected = true
+                )
+            }
+        } catch (e: Exception) {
+            _networkMetrics.value = NetworkMetrics(
+                pingMs = 0,
+                networkType = "Desconectado",
+                isConnected = false
+            )
+        }
+    }
+
+    /**
+     * Determines the top processing or foreground app with fallback.
+     */
+    private fun detectTopProcess() {
+        try {
+            var resolvedAppName: String? = null
+            var packageName: String = ""
+
+            // Method 1: Check UsageStatsManager if available
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                val endTime = System.currentTimeMillis()
+                val beginTime = endTime - (1000 * 60 * 2) // last 2 minutes
+                val stats = usageStatsManager?.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime)
+
+                val recent = stats?.filter { it.packageName != context.packageName }
+                    ?.maxByOrNull { it.lastTimeUsed }
+
+                if (recent != null && recent.lastTimeUsed > 0) {
+                    packageName = recent.packageName
+                    resolvedAppName = getAppNameFromPackage(packageName)
+                }
+            }
+
+            // Method 2: Running App Processes fallback
+            if (resolvedAppName == null && activityManager != null) {
+                val runningProcesses = activityManager.runningAppProcesses
+                val topProc = runningProcesses?.firstOrNull {
+                    it.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND &&
+                        it.processName != context.packageName
+                } ?: runningProcesses?.firstOrNull { it.processName != context.packageName }
+
+                if (topProc != null) {
+                    packageName = topProc.processName
+                    resolvedAppName = getAppNameFromPackage(packageName)
+                }
+            }
+
+            val finalName = resolvedAppName ?: "Meter FPS (Ativo)"
+            _processMetrics.value = ProcessMetrics(
+                topAppName = finalName,
+                packageName = packageName,
+                details = "Em primeiro plano / Atividade principal"
+            )
+        } catch (e: Exception) {
+            _processMetrics.value = ProcessMetrics(
+                topAppName = "Sistema Android",
+                packageName = "android",
+                details = "Serviços em execução"
+            )
+        }
+    }
+
+    private fun getAppNameFromPackage(pkg: String): String {
+        return try {
+            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getApplicationInfo(pkg, 0)
+            }
+            packageManager.getApplicationLabel(appInfo).toString()
+        } catch (e: Exception) {
+            // Simplify package name e.g. com.dts.freefireth -> Free Fire
+            when {
+                pkg.contains("freefire", ignoreCase = true) -> "Free Fire"
+                pkg.contains("pubg", ignoreCase = true) -> "PUBG Mobile"
+                pkg.contains("roblox", ignoreCase = true) -> "Roblox"
+                pkg.contains("cod", ignoreCase = true) -> "Call of Duty"
+                pkg.contains("chrome", ignoreCase = true) -> "Google Chrome"
+                pkg.contains("youtube", ignoreCase = true) -> "YouTube"
+                pkg.contains("whatsapp", ignoreCase = true) -> "WhatsApp"
+                pkg.contains("instagram", ignoreCase = true) -> "Instagram"
+                pkg.contains("tiktok", ignoreCase = true) -> "TikTok"
+                pkg.contains("genshin", ignoreCase = true) -> "Genshin Impact"
+                else -> pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+            }
+        }
+    }
+
     fun getDeviceHardwareInfo(): DeviceHardwareInfo {
         var totalRamGb = 0f
         try {
