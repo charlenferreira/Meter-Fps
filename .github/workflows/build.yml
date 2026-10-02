@@ -21,18 +21,28 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Gerar chave debug.keystore fixa
+      - name: Garantir debug.keystore permanente
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -keypass android \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -startdate "2026/01/01 00:00:00" \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f "debug.keystore" ]; then
+            echo "Gerando debug.keystore definitiva..."
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add debug.keystore
+            git commit -m "chore: salvar debug.keystore permanente"
+            git push
+          else
+            echo "debug.keystore permanente ja existe no repositorio!"
+          fi
 
       - name: Instalar e configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -46,7 +56,6 @@ jobs:
         run: |
           TAG_NAME="v1.0.${{ github.run_number }}"
           REPO_NAME="${{ github.event.repository.name }}"
-          # Encontra o arquivo gerado pelo build e renomeia
           ORIGINAL_APK=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
           cp "$ORIGINAL_APK" "app/build/outputs/apk/debug/${REPO_NAME}-${TAG_NAME}.apk"
 
@@ -61,7 +70,7 @@ jobs:
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Versão 1.0.${{ github.run_number }}"
-          body: "Instalador do ${{ github.event.repository.name }} versão 1.0.${{ github.run_number }} gerado automaticamente!"
+          body: "Instalador do ${{ github.event.repository.name }} v1.0.${{ github.run_number }} gerado automaticamente!"
           files: app/build/outputs/apk/debug/*-v*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
