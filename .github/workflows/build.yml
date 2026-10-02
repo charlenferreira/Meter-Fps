@@ -42,18 +42,26 @@ jobs:
       - name: Compilar o APK
         run: gradle assembleDebug -Djava.awt.headless=true
 
+      - name: Renomear APK com a versao
+        run: |
+          TAG_NAME="v1.0.${{ github.run_number }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          # Encontra o arquivo gerado pelo build e renomeia
+          ORIGINAL_APK=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
+          cp "$ORIGINAL_APK" "app/build/outputs/apk/debug/${REPO_NAME}-${TAG_NAME}.apk"
+
       - name: Salvar APK nos Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ github.event.repository.name }}-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*-v*.apk
 
       - name: Publicar direto no Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Versão 1.0.${{ github.run_number }}"
-          body: "APK do ${{ github.event.repository.name }} compilado automaticamente!"
-          files: app/build/outputs/apk/debug/*.apk
+          body: "Instalador do ${{ github.event.repository.name }} versão 1.0.${{ github.run_number }} gerado automaticamente!"
+          files: app/build/outputs/apk/debug/*-v*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
