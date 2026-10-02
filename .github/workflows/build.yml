@@ -21,13 +21,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Restaurar chave debug.keystore fixa
+      - name: Gerar chave debug.keystore fixa
         run: |
-          if [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
-          else
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -startdate "2026/01/01 00:00:00" \
+            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Instalar e configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -48,7 +53,7 @@ jobs:
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Versão 1.0.${{ github.run_number }}"
-          body: "APK do ${{ github.event.repository.name }} compilado automaticamente e pronto para atualizar!"
+          body: "APK do ${{ github.event.repository.name }} compilado automaticamente!"
           files: app/build/outputs/apk/debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
