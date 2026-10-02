@@ -44,6 +44,15 @@ jobs:
             echo "debug.keystore permanente ja existe no repositorio!"
           fi
 
+      - name: Sincronizar versao interna do app com o GitHub Actions
+        run: |
+          VERSION="1.0.${{ github.run_number }}"
+          echo "Injetando versao $VERSION dentro do app/build.gradle.kts..."
+          # Substitui o versionName fixo antigo pela versao dinamica da execucao
+          sed -i 's/versionName = "[^"]*"/versionName = "'"$VERSION"'"/g' app/build.gradle.kts
+          # Fallback caso a sintaxe seja sem o sinal de igual (versionName "1.0")
+          sed -i 's/versionName "[^"]*"/versionName "'"$VERSION"'"/g' app/build.gradle.kts
+
       - name: Instalar e configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
