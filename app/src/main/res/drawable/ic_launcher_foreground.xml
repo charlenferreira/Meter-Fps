@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer HUD Gauge Arc -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 32,68 A 26,26 0 1,1 76,68" />
+    <!-- Gauge Tick Marks -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 30,54 L 36,54 M 54,30 L 54,36 M 78,54 L 72,54" />
+    <!-- Center Speedometer Needle -->
+    <path
+        android:strokeColor="#FF3D71"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M 54,54 L 66,42" />
+    <!-- Center Pivot Dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,54 m -4,0 a 4,4 0 1,0 8,0 a 4,4 0 1,0 -8,0" />
+    <!-- Digital "FPS" Subtext Bar -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M 40,73 h 28 v 7 h -28 z" />
+    <path
+        android:fillColor="#020617"
+        android:pathData="M 44,75 h 3 v 1.2 h -1.8 v 1 h 1.5 v 1 h -1.5 v 1.8 h -1.2 z" />
+</vector>

@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">FPS &amp; Hardware Monitor HUD</string>
+    <string name="service_notification_channel_id">hud_monitor_channel</string>
+    <string name="service_notification_channel_name">HUD Monitor Service</string>
+    <string name="service_notification_title">HUD de Monitoramento Ativo</string>
+    <string name="service_notification_text">Monitorando FPS, Temperatura e Memória em tempo real.</string>
+    <string name="service_notification_stop_action">Parar HUD</string>
+    <string name="overlay_permission_title">Permissão de Sobreposição Necessária</string>
+    <string name="overlay_permission_desc">Para exibir o widget flutuante sobre outros apps e jogos, conceda a permissão de sobreposição de tela.</string>
+    <string name="grant_permission_button">Conceder Permissão</string>
+    <string name="hud_status_active">HUD Flutuante Ativo</string>
+    <string name="hud_status_inactive">HUD Flutuante Desativado</string>
+</resources>
